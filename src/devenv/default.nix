@@ -21,7 +21,7 @@ let
       else { inherit item; type = "pkg"; }
     ) items;
 
-  envDirectory =
+  devEnvDirectory =
     let
       hash = builtins.hashString "sha1" "${config.module}:${config.variant}:${config.directory}";
     in
@@ -30,64 +30,84 @@ let
   nameToPackage = str:
     getAttrFromPath (splitString "." str) pkgs;
 
-  runListModules =
-    "echo '${builtins.toJSON (mapAttrs (n: v: v.location) modules)}'";
-
-  runCreate =
+  runInShell = { command, loadEnv ? false }:
     let
-      nixPkgs = (map (p: nameToPackage p) config.nixPackages) ++ (
-        map (s: callPackage s {}) config.nixScripts);
+      envAttrs = importJSON "${devEnvDirectory}/env.json";
+      env = optionalString loadEnv envAttrs.env;
+    in
+      mkShell ({
+        shellHook = ''
+          #!${stdenv.shell}
 
-      env =
-        if builtins.hasAttr config.module modules then
-          modules."${config.module}".module {
-            inherit (config) variant paths installPackages installUrls installDirectories;
-            inherit nixPkgs;
-          }
-        else
-          throw "Error: Module '${config.module}' not supported!";
+          ${env}
 
-      envFile = writeScript "devenv-${config.module}-${config.variant}" ''
-        ${env}
+          ${command}
 
-        export PATH="${buildEnv {name = "devenv-nix-pkgs"; paths = nixPkgs;}}/bin:$PATH"
+          exitCode=$?
+          exit $exitCode
+        '';
+      } // optionalAttrs loadEnv {
+        buildInputs = mkNixPkgs { config = envAttrs; };
+      });
 
-        ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
-      '';
-    in ''
-      mkdir -p "${envDirectory}"
-      ln -sf "${envFile}" "${envDirectory}/env"
-    '';
+  runListModules =
+    runInShell { command = "echo '${builtins.toJSON (mapAttrs (n: v: v.location) modules)}'"; };
 
-  runRun =
+  mkNixPkgs = { config }:
+    (map (p: nameToPackage p) config.nixPackages) ++
+    (map (s: callPackage s {}) config.nixScripts);
+
+  module =
     if builtins.hasAttr config.module modules then
-      ''
-        if [ ! -f "${envDirectory}/env" ]; then
-          echo "Environment for directory $PWD does not exist" >&2
-          exit 1
-        fi
-        source "${envDirectory}/env"
-        ${config.cmd}
-      ''
+      modules."${config.module}"
     else
       throw "Error: Module '${config.module}' not supported!";
 
-  runRm = ''
-    if [ ! -f "${envDirectory}/env" ]; then
+  runCreate =
+    let
+      nixPkgs = mkNixPkgs { inherit config; };
+
+      env = module.env {
+        inherit config devEnvDirectory nixPkgs;
+      };
+
+      createCommand = if builtins.hasAttr "createCommand" module then
+        module.createCommand { inherit config devEnvDirectory nixPkgs; }
+        else null;
+
+      envAttrs.env = ''
+        ${env}
+
+        ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
+        export PATH="${concatStringsSep ":" config.paths}:$PATH"
+      '';
+      envAttrs.nixPackages = config.nixPackages;
+      envAttrs.nixScripts = config.nixScripts;
+
+      envFile = writeScript "devenv-${config.module}-${config.variant}.json" (builtins.toJSON envAttrs);
+    in runInShell { command = ''
+      mkdir -p "${devEnvDirectory}"
+      ln -sf "${envFile}" "${devEnvDirectory}/env.json"
+
+      ${optionalString (createCommand != null) createCommand}
+    ''; };
+
+  runRun =
+    runInShell { command = config.cmd; loadEnv = true; };
+
+  runRm = runInShell { command = ''
+    if [ ! -d "${devEnvDirectory}" ]; then
       echo "Environment for directory $PWD does not exist" >&2
       exit 1
     fi
-    rm "${envDirectory}/env"
-    rmdir "${envDirectory}"
-  '';
+    rm -Irf "${devEnvDirectory}"
+  ''; };
 
   mkModule = location: path:
     let
       m = import path { inherit pkgs; };
-    in {
+    in m // {
       inherit location;
-      module = m.module;
-      name = m.name;
     };
 
   builtinModules = map (path: mkModule "builtin" path) (filesystem.listFilesRecursive "${./.}/modules");
@@ -105,13 +125,4 @@ let
     in
       uniqueModules;
 in
-  mkShell {
-    shellHook = ''
-      #!${stdenv.shell}
-
-      ${run}
-
-      exitCode=$?
-      exit $exitCode
-    '';
-  }
+  run

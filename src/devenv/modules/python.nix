@@ -26,17 +26,20 @@ let
       ) ++ nixPkgs;
     };
 
-  module = { variant, paths, nixPkgs, installPackages, installUrls, installDirectories }:
+  env = { config, nixPkgs, devEnvDirectory }:
     let
-      python = "python${variant}";
-      env = mkEnv { inherit python nixPkgs installPackages installUrls installDirectories; };
+      python = "python${config.variant}";
+      env = mkEnv {
+        inherit python nixPkgs;
+        inherit (config) installPackages installUrls installDirectories;
+      };
     in
       ''
-        export PYTHONPATH="${concatStringsSep ":" paths}:${env}/lib/${env.python.libPrefix}/site-packages:$PYTHONPATH"
+        export PYTHONPATH="${concatStringsSep ":" config.paths}:${env}/lib/${env.python.libPrefix}/site-packages:$PYTHONPATH"
         export VIRTUAL_ENV="${env}"
         export PATH="${env}/bin:$PATH"
       '';
 in {
   name = "python";
-  inherit module;
+  inherit env;
 }
