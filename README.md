@@ -55,7 +55,7 @@ $ devenv run python -v 39 -- $SHELL
 Like `run`, this command needs to have same module name, module variant and working directory.
 
 ```shell
-$ devenv run python -v 39 -- $SHELL
+$ devenv rm python -v 39
 ```
 
 Additionally you can run the:
