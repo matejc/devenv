@@ -6,6 +6,8 @@ import sys
 BASEDIR = os.environ.get('DEVENV_BASEDIR',
                          os.path.dirname(os.path.abspath(__file__)))
 
+DEBUG = os.environ.get('DEVENV_DEBUG', None)
+
 
 class _Interface(object):
     action: str
@@ -15,11 +17,11 @@ class _Interface(object):
         self.action = action
 
     def _run_nix_shell(self, args: dict[str, str]) -> str:
-        _args = []
+        _args = ['--show-trace'] if DEBUG else ['--quiet']
         for k, v in args.items():
             _args += ['--argstr', f'{k}', f'{v}']
         try:
-            p = run(['nix-shell', BASEDIR, '--show-trace'] + _args,
+            p = run(['nix-shell', BASEDIR] + _args,
                     check=True, stdout=PIPE, stderr=sys.stderr,
                     encoding='utf-8')
             return p.stdout

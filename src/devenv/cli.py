@@ -30,6 +30,7 @@ def create(args: argparse.Namespace) -> str:
         'variant': args.variant,
         'install': ':'.join(installItems(args.install)),
         'path': ':'.join([os.path.abspath(p) for p in args.path]),
+        'environment': ','.join([f'{n}={v}' for n, v in args.environment]),
         'directory': args.directory
     }
     result = instance.run(args)
@@ -61,6 +62,7 @@ def rm(args: argparse.Namespace) -> str:
 
 def run_devenv():
     parser = argparse.ArgumentParser(
+        prog='devenv',
         description='Development environment builder command line interface')
 
     subparsers = parser.add_subparsers()
@@ -75,6 +77,9 @@ def run_devenv():
         '-i', '--install', type=str, action='append', default=[])
     create_parser.add_argument(
         '-p', '--path', type=str, action='append', default=[])
+    create_parser.add_argument(
+        '-e', '--environment', type=str, nargs=2, metavar=('NAME', 'VALUE'),
+        action='append', default=[])
     create_parser.add_argument(
         '-d', '--directory', type=str, default=os.getcwd())
     create_parser.set_defaults(func=create)
@@ -95,6 +100,6 @@ def run_devenv():
     args = parser.parse_args()
 
     if hasattr(args, 'func'):
-        print(args.func(args) or "Exited with 0")
+        print(args.func(args))
     elif not vars(args):
         parser.print_help()

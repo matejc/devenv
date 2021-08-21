@@ -5,6 +5,7 @@
 , cmd ? ""
 , path ? ""
 , install ? ""
+, environment ? ""
 , directory ? builtins.getEnv "PWD"
 , extraModulesPath ? builtins.getEnv "DEVENV_MODULES_PATH" }:
 with pkgs;
@@ -44,9 +45,14 @@ let
           }
         else
           throw "Error: Module '${module}' not supported!";
+      envFile = writeScript "devenv-${module}-${variant}" ''
+        ${env}
+
+        ${concatMapStringsSep "\n" (e: "export ${e}") (splitString "," environment)}
+      '';
     in ''
       mkdir -p "${envDirectory}"
-      ln -sf "${env}" "${envDirectory}/env"
+      ln -sf "${envFile}" "${envDirectory}/env"
     '';
 
   runRun =

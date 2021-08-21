@@ -7,6 +7,12 @@ let
     version = "dev";
 
     src = ./.;
+
+    shellHook = ''
+      export PYTHONPATH="./src:$PYTHONPATH"
+      export PATH="${python3Packages.python}/bin:$PATH"
+      alias devenv="python -m devenv"
+    '';
   };
 in
   package
