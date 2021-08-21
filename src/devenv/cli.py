@@ -12,51 +12,63 @@ def modules(_: argparse.Namespace) -> str:
 
 
 def create(args: argparse.Namespace) -> str:
-    def installItems(install: list[str]) -> list[str]:
-        items = []
-        for item in install:
-            if item[0] == '@':
-                with open(item[1:], 'r') as f:
-                    items += f.readlines()
-            elif os.path.isdir(item):
-                items += [f'{os.path.abspath(item)}{os.path.sep}']
-            else:
-                items += [item]
-        return items
+    installPackages = []
+    installUrls = []
+    installDirectories = []
+
+    for item in args.install:
+        if item[0] == '@':
+            with open(item[1:], 'r') as f:
+                for line in f.readlines():
+                    if line[0] == '#':
+                        continue
+                    elif line:
+                        installPackages += [line]
+
+        elif os.path.isdir(item):
+            installDirectories += [os.path.abspath(item)]
+
+        elif '://' in item:
+            installUrls += [item]
+
+        else:
+            installPackages += [item]
 
     instance = Create()
-    args = {
+    config = {
         'module': args.module,
         'variant': args.variant,
-        'install': ':'.join(installItems(args.install)),
-        'path': ':'.join([os.path.abspath(p) for p in args.path]),
-        'environment': ','.join([f'{n}={v}' for n, v in args.environment]),
+        'installPackages': installPackages,
+        'installDirectories': installDirectories,
+        'installUrls': installUrls,
+        'paths': [os.path.abspath(p) for p in args.path],
+        'variables': [{'name': n, 'value': v} for n, v in args.variable],
         'directory': args.directory
     }
-    result = instance.run(args)
+    result = instance.run(config)
     return result
 
 
 def run(args: argparse.Namespace) -> str:
     instance = Run()
-    args = {
+    config = {
         'module': args.module,
         'variant': args.variant,
         'cmd': ' '.join(args.cmd),
         'directory': args.directory
     }
-    result = instance.run(args)
+    result = instance.run(config)
     return result
 
 
 def rm(args: argparse.Namespace) -> str:
     instance = Rm()
-    args = {
+    config = {
         'module': args.module,
         'variant': args.variant,
         'directory': args.directory
     }
-    result = instance.run(args)
+    result = instance.run(config)
     return result
 
 
@@ -78,7 +90,7 @@ def run_devenv():
     create_parser.add_argument(
         '-p', '--path', type=str, action='append', default=[])
     create_parser.add_argument(
-        '-e', '--environment', type=str, nargs=2, metavar=('NAME', 'VALUE'),
+        '-e', '--variable', type=str, nargs=2, metavar=('NAME', 'VALUE'),
         action='append', default=[])
     create_parser.add_argument(
         '-d', '--directory', type=str, default=os.getcwd())

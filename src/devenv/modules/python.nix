@@ -18,25 +18,23 @@ let
     inherit pkgs python pypiDataRev pypiDataSha256;
   };
 
-  filterByItemType = type: items:
-    map (i: i.item) (filter (i: i.type == type) items);
+  mkEnv = { python, installPackages, installUrls, installDirectories }:
+    (machNix python).mkPython {
+      requirements = concatStringsSep "\n" installPackages;
+      packagesExtra = installUrls ++ (
+        map (i: builtins.path { path = i; }) installDirectories
+      );
+    };
 
-  env = python: installItems: (machNix python).mkPython {
-    requirements = concatStringsSep "\n" (filterByItemType "pkg" installItems);
-    packagesExtra = (filterByItemType "url" installItems) ++ (
-      map (i: builtins.path { path = i; }) (filterByItemType "dir" installItems)
-    );
-  };
-
-  module = { variant, paths, installItems }:
+  module = { variant, paths, installPackages, installUrls, installDirectories }:
     let
       python = "python${variant}";
-      env' = env python installItems;
+      env = mkEnv { inherit python installPackages installUrls installDirectories; };
     in
       ''
-        export PYTHONPATH="${concatStringsSep ":" paths}:${env'}/lib/${env'.python.libPrefix}/site-packages:$PYTHONPATH"
-        export VIRTUAL_ENV="${env'}"
-        export PATH="${env'}/bin:$PATH"
+        export PYTHONPATH="${concatStringsSep ":" paths}:${env}/lib/${env.python.libPrefix}/site-packages:$PYTHONPATH"
+        export VIRTUAL_ENV="${env}"
+        export PATH="${env}/bin:$PATH"
       '';
 in {
   name = "python";

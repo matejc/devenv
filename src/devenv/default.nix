@@ -1,12 +1,6 @@
 { pkgs ? import <nixpkgs> {}
 , action ? ""
-, module ? ""
-, variant ? ""
-, cmd ? ""
-, path ? ""
-, install ? ""
-, environment ? ""
-, directory ? builtins.getEnv "PWD"
+, configJSON ? "{}"
 , extraModulesPath ? builtins.getEnv "DEVENV_MODULES_PATH" }:
 with pkgs;
 with lib;
@@ -18,6 +12,8 @@ let
     else if action == "rm" then runRm
     else throw "Error: Action '${action}' not supported!";
 
+  config = builtins.fromJSON configJSON;
+
   splitInstallItems = items:
     map (item:
       if hasSuffix "/" item then { inherit item; type = "dir"; }
@@ -27,28 +23,27 @@ let
 
   envDirectory =
     let
-      hash = builtins.hashString "sha1" "${module}:${variant}:${directory}";
+      hash = builtins.hashString "sha1" "${config.module}:${config.variant}:${config.directory}";
     in
       "${builtins.getEnv "HOME"}/.devenv/${hash}";
 
   runListModules =
-    concatMapStringsSep "\n" (m: "echo '${m.name}:${m.location}'") (mapAttrsToList (n: v: v) modules);
+    "echo '${builtins.toJSON (mapAttrs (n: v: v.location) modules)}'";
 
   runCreate =
     let
-      paths = splitString ":" path;
-      installItems = splitInstallItems (splitString ":" install);
       env =
-        if builtins.hasAttr module modules then
-          modules."${module}".module {
-            inherit variant paths installItems;
+        if builtins.hasAttr config.module modules then
+          modules."${config.module}".module {
+            inherit (config) variant paths installPackages installUrls installDirectories;
           }
         else
-          throw "Error: Module '${module}' not supported!";
-      envFile = writeScript "devenv-${module}-${variant}" ''
+          throw "Error: Module '${config.module}' not supported!";
+
+      envFile = writeScript "devenv-${config.module}-${config.variant}" ''
         ${env}
 
-        ${concatMapStringsSep "\n" (e: "export ${e}") (splitString "," environment)}
+        ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
       '';
     in ''
       mkdir -p "${envDirectory}"
@@ -56,17 +51,17 @@ let
     '';
 
   runRun =
-    if builtins.hasAttr module modules then
+    if builtins.hasAttr config.module modules then
       ''
         if [ ! -f "${envDirectory}/env" ]; then
           echo "Environment for directory $PWD does not exist" >&2
           exit 1
         fi
         source "${envDirectory}/env"
-        ${cmd}
+        ${config.cmd}
       ''
     else
-      throw "Error: Module '${module}' not supported!";
+      throw "Error: Module '${config.module}' not supported!";
 
   runRm = ''
     if [ ! -f "${envDirectory}/env" ]; then

@@ -1,7 +1,8 @@
 import os
+import json
+import sys
 
 from subprocess import CalledProcessError, PIPE, run
-import sys
 
 BASEDIR = os.environ.get('DEVENV_BASEDIR',
                          os.path.dirname(os.path.abspath(__file__)))
@@ -11,15 +12,15 @@ DEBUG = os.environ.get('DEVENV_DEBUG', None)
 
 class _Interface(object):
     action: str
-    result: str
 
     def __init__(self, action: str):
         self.action = action
 
-    def _run_nix_shell(self, args: dict[str, str]) -> str:
+    def _run_nix_shell(self, config: dict[str, object]) -> str:
         _args = ['--show-trace'] if DEBUG else ['--quiet']
-        for k, v in args.items():
-            _args += ['--argstr', f'{k}', f'{v}']
+        configJSON = json.dumps(config)
+        _args += ['--argstr', 'action', self.action]
+        _args += ['--argstr', 'configJSON', configJSON]
         try:
             p = run(['nix-shell', BASEDIR] + _args,
                     check=True, stdout=PIPE, stderr=sys.stderr,
@@ -28,14 +29,11 @@ class _Interface(object):
         except CalledProcessError as e:
             raise e
 
-    def run(self, args: dict[str, str] = None):
-        _args = {'action': self.action}
-        for k, v in (args or {}).items():
-            _args[k] = v
-        self.result = self._run_nix_shell(_args)
-        return self._return()
+    def run(self, config: dict[str, object] = None):
+        result = self._run_nix_shell(config or {})
+        return self._return(result)
 
-    def _return(self):
+    def _return(self, _: str):
         raise NotImplementedError()
 
 
@@ -44,9 +42,8 @@ class Modules(_Interface):
     def __init__(self):
         super().__init__('modules')
 
-    def _return(self):
-        module_list = [line.split(':') for line in self.result.splitlines()]
-        return {name: location for name, location in module_list}
+    def _return(self, result: str):
+        return json.loads(result)
 
 
 class Create(_Interface):
@@ -54,8 +51,8 @@ class Create(_Interface):
     def __init__(self):
         super().__init__('create')
 
-    def _return(self):
-        return self.result
+    def _return(self, result: str):
+        return result
 
 
 class Run(_Interface):
@@ -63,8 +60,8 @@ class Run(_Interface):
     def __init__(self):
         super().__init__('run')
 
-    def _return(self):
-        return self.result
+    def _return(self, result: str):
+        return result
 
 
 class Rm(_Interface):
@@ -72,5 +69,5 @@ class Rm(_Interface):
     def __init__(self):
         super().__init__('rm')
 
-    def _return(self):
-        return self.result
+    def _return(self, result: str):
+        return result
