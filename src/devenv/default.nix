@@ -27,21 +27,30 @@ let
     in
       "${builtins.getEnv "HOME"}/.devenv/${hash}";
 
+  nameToPackage = str:
+    getAttrFromPath (splitString "." str) pkgs;
+
   runListModules =
     "echo '${builtins.toJSON (mapAttrs (n: v: v.location) modules)}'";
 
   runCreate =
     let
+      nixPkgs = (map (p: nameToPackage p) config.nixPackages) ++ (
+        map (s: callPackage s {}) config.nixScripts);
+
       env =
         if builtins.hasAttr config.module modules then
           modules."${config.module}".module {
             inherit (config) variant paths installPackages installUrls installDirectories;
+            inherit nixPkgs;
           }
         else
           throw "Error: Module '${config.module}' not supported!";
 
       envFile = writeScript "devenv-${config.module}-${config.variant}" ''
         ${env}
+
+        export PATH="${buildEnv {name = "devenv-nix-pkgs"; paths = nixPkgs;}}/bin:$PATH"
 
         ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
       '';

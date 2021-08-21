@@ -15,6 +15,8 @@ def create(args: argparse.Namespace) -> str:
     installPackages = []
     installUrls = []
     installDirectories = []
+    nixPackages = []
+    nixScripts = []
 
     for item in args.install:
         if item[0] == '@':
@@ -31,6 +33,12 @@ def create(args: argparse.Namespace) -> str:
         elif '://' in item:
             installUrls += [item]
 
+        elif item.startswith('pkgs.'):
+            nixPackages += [item]
+
+        elif item.endswith('.nix') and os.path.isfile(item):
+            nixScripts += [os.path.abspath(item)]
+
         else:
             installPackages += [item]
 
@@ -41,6 +49,8 @@ def create(args: argparse.Namespace) -> str:
         'installPackages': installPackages,
         'installDirectories': installDirectories,
         'installUrls': installUrls,
+        'nixPackages': nixPackages,
+        'nixScripts': nixScripts,
         'paths': [os.path.abspath(p) for p in args.path],
         'variables': [{'name': n, 'value': v} for n, v in args.variable],
         'directory': args.directory

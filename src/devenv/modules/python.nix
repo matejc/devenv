@@ -18,18 +18,18 @@ let
     inherit pkgs python pypiDataRev pypiDataSha256;
   };
 
-  mkEnv = { python, installPackages, installUrls, installDirectories }:
+  mkEnv = { python, nixPkgs, installPackages, installUrls, installDirectories }:
     (machNix python).mkPython {
       requirements = concatStringsSep "\n" installPackages;
       packagesExtra = installUrls ++ (
         map (i: builtins.path { path = i; }) installDirectories
-      );
+      ) ++ nixPkgs;
     };
 
-  module = { variant, paths, installPackages, installUrls, installDirectories }:
+  module = { variant, paths, nixPkgs, installPackages, installUrls, installDirectories }:
     let
       python = "python${variant}";
-      env = mkEnv { inherit python installPackages installUrls installDirectories; };
+      env = mkEnv { inherit python nixPkgs installPackages installUrls installDirectories; };
     in
       ''
         export PYTHONPATH="${concatStringsSep ":" paths}:${env}/lib/${env.python.libPrefix}/site-packages:$PYTHONPATH"
