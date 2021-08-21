@@ -31,11 +31,10 @@ let
         set -e
 
         export PATH="${makeBinPath nixPkgs}:$PATH"
-        export NPM_CONFIG_PREFIX="${devEnvDirectory}/npm"
+        export npm_config_prefix="${devEnvDirectory}/npm"
 
-        mkdir -p $NPM_CONFIG_PREFIX
-        ${getNodejs config.variant}/bin/npm install -g --prefix="$NPM_CONFIG_PREFIX" \
-        ${deps}
+        mkdir -p $npm_config_prefix
+        ${getNodejs config.variant}/bin/npm install -g ${deps}
       '';
     in
       if deps == "" then null else script;
