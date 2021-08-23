@@ -32,19 +32,19 @@ let
 
   runInShell = { command, loadEnv ? false }:
     let
-      envAttrs = importJSON "${devEnvDirectory}/env.json";
-      env = optionalString loadEnv envAttrs.env;
+      config = importJSON "${devEnvDirectory}/config.json";
+      envFile = "${devEnvDirectory}/bin/env";
     in
       mkShell ({
         shellHook = ''
           #!${stdenv.shell}
-          ${env}
+          ${optionalString loadEnv "source ${envFile}"}
           ${command}
           exitCode=$?
           exit $exitCode
         '';
       } // optionalAttrs loadEnv {
-        buildInputs = mkNixPkgs { config = envAttrs; };
+        buildInputs = mkNixPkgs { inherit config; };
       });
 
   runListModules =
@@ -64,28 +64,47 @@ let
     let
       nixPkgs = mkNixPkgs { inherit config; };
 
-      env = module.env {
-        inherit config devEnvDirectory nixPkgs;
-      };
-
       createCommand = if builtins.hasAttr "createCommand" module then
         module.createCommand { inherit config devEnvDirectory nixPkgs; }
         else "";
 
-      envAttrs = { inherit (config) module variant directory; };
-      envAttrs.env = ''
-        ${env}
+      env = module.env {
+        inherit config devEnvDirectory nixPkgs;
+      };
 
-        ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
+      mkExecutable = { name, executable, loadEnv ? true }:
+        writeScriptBin name ''
+          #!${stdenv.shell}
+          ${optionalString loadEnv "source ${envFile}/bin/env"}
+          ${executable} $@
+        '';
+
+      binFolder = buildEnv {
+        name = "devenv-${config.module}-${config.variant}";
+        paths = [ envFile ] ++ (
+          mapAttrsToList (n: v: mkExecutable ({
+            name = n;
+            executable = v.executable;
+          } // (optionalAttrs (hasAttr "loadEnv" v) {
+            loadEnv = v.loadEnv;
+          }))) (
+            optionalAttrs (hasAttr "executables" env) env.executables
+          )
+        );
+        pathsToLink = [ "/bin" ];
+      };
+
+      envFile = writeScriptBin "env" ''
+        ${env.env}
         export PATH="${concatStringsSep ":" config.paths}:$PATH"
+        ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
       '';
-      envAttrs.nixPackages = config.nixPackages;
-      envAttrs.nixScripts = config.nixScripts;
 
-      envFile = writeScript "devenv-${config.module}-${config.variant}.json" (builtins.toJSON envAttrs);
+      configFile = writeText "devenv-${config.module}-${config.variant}.json" (builtins.toJSON config);
     in runInShell { command = ''
       mkdir -p "${devEnvDirectory}"
-      ln -sf "${envFile}" "${devEnvDirectory}/env.json"
+      ln -sf "${binFolder}/bin" "${devEnvDirectory}/"
+      ln -sf "${configFile}" "${devEnvDirectory}/config.json"
       ${createCommand}
     ''; };
 

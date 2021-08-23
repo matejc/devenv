@@ -41,12 +41,14 @@ let
         inherit python nixPkgs installPackages;
         inherit (config) installUrls installDirectories;
       };
-    in
-      ''
+    in {
+      env = ''
         export PYTHONPATH="${concatStringsSep ":" config.paths}:${env}/lib/${env.python.libPrefix}/site-packages:$PYTHONPATH"
         export VIRTUAL_ENV="${env}"
         export PATH="${env}/bin:$PATH"
       '';
+      executables.python.executable = "${env}/bin/python";
+    };
 in {
   name = "python";
   inherit env;

@@ -9,9 +9,11 @@ let
                        config.installDirectories == [] &&
                        config.installFiles == [])
       "Error: install pkg, url and dir option is not used by generic module");
-    ''
-      export PATH="${concatStringsSep ":" config.paths}:$PATH"
-    '';
+    {
+      env = ''
+        export PATH="${concatStringsSep ":" config.paths}:$PATH"
+      '';
+    };
 in {
   name = "generic";
   inherit env;

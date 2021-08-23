@@ -15,12 +15,14 @@ let
                           config.installDirectories ++
                           config.installFiles);
 
-  env = { config, nixPkgs, devEnvDirectory }:
-    ''
+  env = { config, nixPkgs, devEnvDirectory }: {
+    env = ''
       export NODE_PATH="${devEnvDirectory}/npm/lib/node_modules"
       export npm_config_prefix="${devEnvDirectory}/npm"
       export PATH="${devEnvDirectory}/npm/bin:${getNodejs config.variant}/bin:$PATH"
     '';
+    executables.node.executable = "${getNodejs config.variant}/bin/node";
+  };
 
   createCommand = { config, nixPkgs, devEnvDirectory }:
     let

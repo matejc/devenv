@@ -1,18 +1,13 @@
 { pkgs ? import <nixpkgs> {} }:
-with pkgs;
-with lib;
-let
-  package = python3Packages.buildPythonPackage {
-    pname = "devenv";
-    version = "dev";
+pkgs.python3Packages.buildPythonPackage {
+  pname = "devenv";
+  version = "dev";
 
-    src = ./.;
+  src = ./.;
 
-    shellHook = ''
-      export PYTHONPATH="./src:$PYTHONPATH"
-      export PATH="${python3Packages.python}/bin:$PATH"
-      alias devenv="python -m devenv"
-    '';
-  };
-in
-  package
+  shellHook = ''
+    export PYTHONPATH="./src:$PYTHONPATH"
+    export PATH="${pkgs.python3Packages.python}/bin:$PATH"
+    alias devenv="python -m devenv"
+  '';
+}

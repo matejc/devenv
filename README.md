@@ -4,13 +4,23 @@ Pluggable development environments builder that has potential to support *any* l
 
 Nix is being used for building environments, but you do not need to interact with Nix for using this tool (except installing it).
 
+DevEnv is what virtualenv is for Python, just for *any* supported language.
+
 
 ## Requirements
 
 - Nix (https://nixos.org/download.html#nix-quick-install)
 
 
-## Usage
+## Install
+
+```shell
+$ git clone git://github.com/matejc/devenv
+$ nix-env -f ./devenv -i
+```
+
+
+## Usage (Python module)
 
 ### Create the environment
 
@@ -27,7 +37,7 @@ $ devenv create python -v 39 -i @requirements.txt -i robotframework==3.2.2 -p ./
 ```
 
 Command will create the environment for Python 3.9 with dependencies from
-the `./requirements.txt` and with RobotFramework 3.2.2. Additionally it will add
+the `./requirements.txt` and with Robot Framework 3.2.2. Additionally it will add
 `./src` to the start of `PYTHONPATH`.
 On it's own this procedure will not touch your current shell in any way.
 

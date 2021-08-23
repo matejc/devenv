@@ -27,7 +27,11 @@ class _Interface(object):
                     encoding='utf-8')
             return p.stdout
         except CalledProcessError as e:
-            raise e
+            if DEBUG:
+                raise e
+            else:
+                print(str(e), file=sys.stderr)
+                exit(1)
 
     def run(self, config: dict[str, object] = None):
         result = self._run_nix_shell(config or {})
