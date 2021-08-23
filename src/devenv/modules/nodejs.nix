@@ -10,18 +10,17 @@ let
     nameToPackage "pkgs.nodejs-${variant}_x";
 
   mkDependencies = config:
-    concatStringsSep " " (config.installPackages ++ config.installUrls ++ config.installDirectories);
+    concatStringsSep " " (config.installPackages ++
+                          config.installUrls ++
+                          config.installDirectories ++
+                          config.installFiles);
 
   env = { config, nixPkgs, devEnvDirectory }:
-    let
-      nodejs = getNodejs config.variant;
-      nodeDependencies = "${devEnvDirectory}/npm";
-    in
-      ''
-        export NODE_PATH="${nodeDependencies}/lib/node_modules"
-        export npm_config_prefix="${nodeDependencies}"
-        export PATH="${nodeDependencies}/bin:${nodejs}/bin:$PATH"
-      '';
+    ''
+      export NODE_PATH="${devEnvDirectory}/npm/lib/node_modules"
+      export npm_config_prefix="${devEnvDirectory}/npm"
+      export PATH="${devEnvDirectory}/npm/bin:${getNodejs config.variant}/bin:$PATH"
+    '';
 
   createCommand = { config, nixPkgs, devEnvDirectory }:
     let
@@ -37,7 +36,7 @@ let
         ${getNodejs config.variant}/bin/npm install -g ${deps}
       '';
     in
-      if deps == "" then null else script;
+      if deps == "" then "" else script;
 in {
   name = "nodejs";
   inherit env createCommand;

@@ -15,17 +15,13 @@ def create(args: argparse.Namespace) -> str:
     installPackages = []
     installUrls = []
     installDirectories = []
+    installFiles = []
     nixPackages = []
     nixScripts = []
 
     for item in args.install:
-        if item[0] == '@':
-            with open(item[1:], 'r') as f:
-                for line in f.readlines():
-                    if line[0] == '#':
-                        continue
-                    elif line:
-                        installPackages += [line]
+        if item[0] == '@' and os.path.isfile(item[1:]):
+            installFiles += [os.path.abspath(item[1:])]
 
         elif os.path.isdir(item):
             installDirectories += [os.path.abspath(item)]
@@ -49,6 +45,7 @@ def create(args: argparse.Namespace) -> str:
         'installPackages': installPackages,
         'installDirectories': installDirectories,
         'installUrls': installUrls,
+        'installFiles': installFiles,
         'nixPackages': nixPackages,
         'nixScripts': nixScripts,
         'paths': [os.path.abspath(p) for p in args.path],

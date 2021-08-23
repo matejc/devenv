@@ -38,11 +38,8 @@ let
       mkShell ({
         shellHook = ''
           #!${stdenv.shell}
-
           ${env}
-
           ${command}
-
           exitCode=$?
           exit $exitCode
         '';
@@ -73,8 +70,9 @@ let
 
       createCommand = if builtins.hasAttr "createCommand" module then
         module.createCommand { inherit config devEnvDirectory nixPkgs; }
-        else null;
+        else "";
 
+      envAttrs = { inherit (config) module variant directory; };
       envAttrs.env = ''
         ${env}
 
@@ -88,8 +86,7 @@ let
     in runInShell { command = ''
       mkdir -p "${devEnvDirectory}"
       ln -sf "${envFile}" "${devEnvDirectory}/env.json"
-
-      ${optionalString (createCommand != null) createCommand}
+      ${createCommand}
     ''; };
 
   runRun =
@@ -112,9 +109,13 @@ let
 
   builtinModules = map (path: mkModule "builtin" path) (filesystem.listFilesRecursive "${./.}/modules");
   extraModules =
+    let
+      getNixFiles = path:
+        filter (p: hasSuffix ".nix" p) (filesystem.listFilesRecursive path);
+    in
     if extraModulesPath != "" then
       map (modulePath: mkModule modulePath modulePath) (flatten (
-        map (modulesPath: filesystem.listFilesRecursive modulesPath) (splitString ":" extraModulesPath)
+        map (modulesPath: getNixFiles modulesPath) (splitString ":" extraModulesPath)
       ))
     else [];
 

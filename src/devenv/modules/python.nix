@@ -18,6 +18,13 @@ let
     inherit pkgs python pypiDataRev pypiDataSha256;
   };
 
+  packagesFromFiles = files:
+    let
+      lines = flatten (map (file: lib.splitString "\n" (readFile (builtins.path file))) files);
+      removeComments = filter (line: line != "" && !(hasPrefix "#" line));
+    in
+      removeComments lines;
+
   mkEnv = { python, nixPkgs, installPackages, installUrls, installDirectories }:
     (machNix python).mkPython {
       requirements = concatStringsSep "\n" installPackages;
@@ -29,9 +36,10 @@ let
   env = { config, nixPkgs, devEnvDirectory }:
     let
       python = "python${config.variant}";
+      installPackages = config.installPackages ++ (packagesFromFiles config.installFiles);
       env = mkEnv {
-        inherit python nixPkgs;
-        inherit (config) installPackages installUrls installDirectories;
+        inherit python nixPkgs installPackages;
+        inherit (config) installUrls installDirectories;
       };
     in
       ''
