@@ -1,5 +1,6 @@
 { pkgs ? import <nixpkgs> {}
 , action ? ""
+, id ? null
 , configJSON ? "{}"
 , extraModulesPath ? builtins.getEnv "DEVENV_MODULES_PATH" }:
 with pkgs;
@@ -14,18 +15,24 @@ let
 
   config = builtins.fromJSON configJSON;
 
-  splitInstallItems = items:
-    map (item:
-      if hasSuffix "/" item then { inherit item; type = "dir"; }
-      else if hasInfix "://" item then { inherit item; type = "url"; }
-      else { inherit item; type = "pkg"; }
-    ) items;
+  devEnvDirectory = if id == null then mkDevEnvDirectoryFromConfig config else mkDevEnvDirectoryFromId id;
 
-  devEnvDirectory =
+  mkDevEnvDirectoryFromId = id:
+    if stringLength id == 16 then
+      "${builtins.getEnv "HOME"}/.devenv/${id}"
+    else
+      throw "Id '${id}' is not valid!";
+
+  mkDevEnvDirectoryFromConfig = config:
     let
-      hash = builtins.hashString "sha1" "${config.module}:${config.variant}:${config.directory}";
+      setToList = path: set:
+        flatten (mapAttrsToList (n: v:
+          if (builtins.typeOf v) == "set" then (setToList (path++[n]) v) else "${concatStringsSep "." (path++[n])}=${toString v}"
+        ) set);
+      content = concatStringsSep "\n" (sort (a: b: a < b) (setToList [] config));
+      hash = builtins.hashString "sha1" content;
     in
-      "${builtins.getEnv "HOME"}/.devenv/${hash}";
+      "${builtins.getEnv "HOME"}/.devenv/${builtins.substring 0 16 hash}";
 
   nameToPackage = str:
     getAttrFromPath (splitString "." str) pkgs;
@@ -66,7 +73,7 @@ let
 
       createCommand = if builtins.hasAttr "createCommand" module then
         module.createCommand { inherit config devEnvDirectory nixPkgs; }
-        else "";
+        else null;
 
       env = module.env {
         inherit config devEnvDirectory nixPkgs;
@@ -105,7 +112,9 @@ let
       mkdir -p "${devEnvDirectory}"
       ln -sf "${binFolder}/bin" "${devEnvDirectory}/"
       ln -sf "${configFile}" "${devEnvDirectory}/config.json"
-      ${createCommand}
+      { ${
+        if createCommand != "" && createCommand != null then createCommand else "true"
+      }; } && echo -e "\n$(basename ${devEnvDirectory})"
     ''; };
 
   runRun =
@@ -113,7 +122,7 @@ let
 
   runRm = runInShell { command = ''
     if [ ! -d "${devEnvDirectory}" ]; then
-      echo "Environment for directory $PWD does not exist" >&2
+      echo "Environment '$(basename ${devEnvDirectory})' does not exist" >&2
       exit 1
     fi
     rm -Irf "${devEnvDirectory}"

@@ -26,6 +26,7 @@ def execute(cmd: str, return_stdout: bool):
 
 class _Interface(object):
     action: str
+    id: str = None
 
     def __init__(self, action: str, return_stdout: bool = False):
         self.action = action
@@ -33,8 +34,10 @@ class _Interface(object):
 
     def _run_nix_shell(self, config: dict[str, object]) -> str:
         _args = ['--show-trace'] if DEBUG else ['--quiet']
-        configJSON = json.dumps(config)
+        if self.id:
+            _args += ['--argstr', 'id', self.id]
         _args += ['--argstr', 'action', self.action]
+        configJSON = json.dumps(config)
         _args += ['--argstr', 'configJSON', configJSON]
         return execute(['nix-shell', BASEDIR] + _args,
                        return_stdout=self.return_stdout)
@@ -67,8 +70,9 @@ class Create(_Interface):
 
 class Run(_Interface):
 
-    def __init__(self):
+    def __init__(self, _id: str = None):
         super().__init__('run')
+        self.id = _id
 
     def _return(self, result: str):
         return result
@@ -76,8 +80,9 @@ class Run(_Interface):
 
 class Rm(_Interface):
 
-    def __init__(self):
+    def __init__(self, _id: str = None):
         super().__init__('rm')
+        self.id = _id
 
     def _return(self, result: str):
         return result

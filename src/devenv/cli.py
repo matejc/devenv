@@ -33,8 +33,8 @@ def create(args: argparse.Namespace) -> str:
         elif item.endswith('.nix') and os.path.isfile(item):
             nixScripts += [os.path.abspath(item)]
 
-        elif os.path.isfile(item[1:]):
-            installFiles += [os.path.abspath(item[1:])]
+        elif os.path.isfile(item):
+            installFiles += [os.path.abspath(item)]
 
         else:
             installPackages += [item]
@@ -69,6 +69,15 @@ def run(args: argparse.Namespace) -> str:
     return result
 
 
+def run_id(args: argparse.Namespace) -> str:
+    instance = Run(args.id)
+    config = {
+        'cmd': ' '.join(args.cmd)
+    }
+    result = instance.run(config)
+    return result
+
+
 def rm(args: argparse.Namespace) -> str:
     instance = Rm()
     config = {
@@ -80,20 +89,50 @@ def rm(args: argparse.Namespace) -> str:
     return result
 
 
-def list_envs(_: argparse.Namespace) -> str:
+def rm_id(args: argparse.Namespace) -> str:
+    instance = Rm(args.id)
+    config = {}
+    result = instance.run(config)
+    return result
+
+
+def get_configs() -> str:
     env_prefix = os.path.join(os.environ['HOME'], '.devenv')
 
-    results = []
+    results = {}
     for d in os.listdir(env_prefix):
         env_dir = os.path.abspath(os.path.join(env_prefix, d))
         if os.path.isdir(env_dir):
             with open(os.path.join(env_dir, 'config.json'), 'r') as f:
                 config = json.load(f)
-                module = config['module']
-                variant = config['variant']
-                directory = config['directory']
-                results += [f' - {module} ({variant}) {directory}']
+                config['id'] = d
+                results[d] = config
+    return results
 
+
+def search_configs(query: dict[str, object]):
+    configs = get_configs()
+    results = {}
+    for qk, qv in query.items():
+        for _id, config in configs.items():
+            if config[qk] == qv:
+                if results.get(_id, False):
+                    results[_id]['count'] += 1
+                else:
+                    results[_id] = {'config': config, 'count': 1}
+    out = {k: v['config'] for k, v in results.items() if v['count'] == len(query)}
+    return out
+
+
+def list_func(args: argparse.Namespace) -> str:
+    query = {n: v for n, v in args.option}
+    configs = get_configs() if len(args.option) == 0 else search_configs(query)
+    results = []
+    for _id, config in configs.items():
+        module = config['module']
+        variant = config['variant']
+        directory = config['directory']
+        results += [f'{_id} - {module} ({variant}) {directory}']
     return '\n'.join(sorted(results))
 
 
@@ -123,10 +162,15 @@ def run_devenv():
 
     run_parser = subparsers.add_parser('run')
     run_parser.add_argument('module', type=str)
-    run_parser.add_argument('cmd', type=str, nargs='+')
     run_parser.add_argument('-v', '--variant', type=str, default='')
     run_parser.add_argument('-d', '--directory', type=str, default=os.getcwd())
+    run_parser.add_argument('cmd', type=str, nargs='+')
     run_parser.set_defaults(func=run)
+
+    run_id_parser = subparsers.add_parser('run-id')
+    run_id_parser.add_argument('id', type=str)
+    run_id_parser.add_argument('cmd', type=str, nargs='+')
+    run_id_parser.set_defaults(func=run_id)
 
     rm_parser = subparsers.add_parser('rm')
     rm_parser.add_argument('module', type=str)
@@ -134,8 +178,15 @@ def run_devenv():
     rm_parser.add_argument('-d', '--directory', type=str, default=os.getcwd())
     rm_parser.set_defaults(func=rm)
 
+    rm_id_parser = subparsers.add_parser('rm-id')
+    rm_id_parser.add_argument('id', type=str)
+    rm_id_parser.set_defaults(func=rm_id)
+
     list_parser = subparsers.add_parser('list')
-    list_parser.set_defaults(func=list_envs)
+    list_parser.add_argument(
+        '-o', '--option', type=str, nargs=2, metavar=('NAME', 'VALUE'),
+        action='append', default=[])
+    list_parser.set_defaults(func=list_func)
 
     args = parser.parse_args()
 

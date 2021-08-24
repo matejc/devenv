@@ -20,7 +20,7 @@ let
 
   packagesFromFiles = files:
     let
-      lines = flatten (map (file: lib.splitString "\n" (readFile (builtins.path file))) files);
+      lines = flatten (map (file: splitString "\n" (readFile (builtins.path { path = file; }))) files);
       removeComments = filter (line: line != "" && !(hasPrefix "#" line));
     in
       removeComments lines;
