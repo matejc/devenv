@@ -14,9 +14,21 @@ DevEnv is what virtualenv is for Python, just for *any* supported language.
 
 ## Install
 
+With Nix:
+
 ```shell
 $ git clone git://github.com/matejc/devenv
 $ nix-env -f ./devenv -i
+$ devenv modules  # to try out if it lists modules
+```
+
+With PIP inside venv:
+
+```shell
+$ git clone git://github.com/matejc/devenv
+$ python3 -m venv ./devenv
+$ ./devenv/bin/pip install ./devenv
+$ ./devenv/bin/devenv modules  # to try out if it lists modules
 ```
 
 
@@ -86,11 +98,23 @@ $ devenv modules
 
 ## Development
 
+With Nix:
+
 ```shell
 $ git clone git://github.com/matejc/devenv
 $ cd devenv
 $ nix-shell
 ```
+
+With PIP inside venv:
+
+```shell
+$ git clone git://github.com/matejc/devenv
+$ python3 -m venv ./devenv
+$ ./devenv/bin/pip install -e ./devenv
+$ ./devenv/bin/devenv modules  # to try out if it lists modules
+```
+
 
 ### Create more modules
 

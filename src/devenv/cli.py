@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 
 from devenv import Rm, Run, Modules, Create
@@ -7,8 +8,8 @@ from devenv import Rm, Run, Modules, Create
 def modules(_: argparse.Namespace) -> str:
     instance = Modules()
     results = instance.run()
-    return 'Supported modules:\n' + '\n'.join(
-        [f' - {name} ({location})' for name, location in results.items()])
+    return '\n'.join(sorted(
+        [f' - {name} ({location})' for name, location in results.items()]))
 
 
 def create(args: argparse.Namespace) -> str:
@@ -20,10 +21,7 @@ def create(args: argparse.Namespace) -> str:
     nixScripts = []
 
     for item in args.install:
-        if item[0] == '@' and os.path.isfile(item[1:]):
-            installFiles += [os.path.abspath(item[1:])]
-
-        elif os.path.isdir(item):
+        if os.path.isdir(item):
             installDirectories += [os.path.abspath(item)]
 
         elif '://' in item:
@@ -34,6 +32,9 @@ def create(args: argparse.Namespace) -> str:
 
         elif item.endswith('.nix') and os.path.isfile(item):
             nixScripts += [os.path.abspath(item)]
+
+        elif os.path.isfile(item[1:]):
+            installFiles += [os.path.abspath(item[1:])]
 
         else:
             installPackages += [item]
@@ -79,6 +80,23 @@ def rm(args: argparse.Namespace) -> str:
     return result
 
 
+def list_envs(_: argparse.Namespace) -> str:
+    env_prefix = os.path.join(os.environ['HOME'], '.devenv')
+
+    results = []
+    for d in os.listdir(env_prefix):
+        env_dir = os.path.abspath(os.path.join(env_prefix, d))
+        if os.path.isdir(env_dir):
+            with open(os.path.join(env_dir, 'config.json'), 'r') as f:
+                config = json.load(f)
+                module = config['module']
+                variant = config['variant']
+                directory = config['directory']
+                results += [f' - {module} ({variant}) {directory}']
+
+    return '\n'.join(sorted(results))
+
+
 def run_devenv():
     parser = argparse.ArgumentParser(
         prog='devenv',
@@ -115,6 +133,9 @@ def run_devenv():
     rm_parser.add_argument('-v', '--variant', type=str, default='')
     rm_parser.add_argument('-d', '--directory', type=str, default=os.getcwd())
     rm_parser.set_defaults(func=rm)
+
+    list_parser = subparsers.add_parser('list')
+    list_parser.set_defaults(func=list_envs)
 
     args = parser.parse_args()
 

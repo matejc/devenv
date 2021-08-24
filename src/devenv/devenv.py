@@ -10,28 +10,34 @@ BASEDIR = os.environ.get('DEVENV_BASEDIR',
 DEBUG = os.environ.get('DEVENV_DEBUG', None)
 
 
+def execute(cmd: str, return_stdout: bool):
+    try:
+        stream = PIPE if return_stdout else sys.stdout
+        p = run(cmd, check=True, stdout=stream, stderr=sys.stderr,
+                encoding='utf-8')
+        return p.stdout if return_stdout else ''
+    except CalledProcessError as e:
+        if DEBUG:
+            raise e
+        else:
+            print(str(e), file=sys.stderr)
+            exit(1)
+
+
 class _Interface(object):
     action: str
 
-    def __init__(self, action: str):
+    def __init__(self, action: str, return_stdout: bool = False):
         self.action = action
+        self.return_stdout = return_stdout
 
     def _run_nix_shell(self, config: dict[str, object]) -> str:
         _args = ['--show-trace'] if DEBUG else ['--quiet']
         configJSON = json.dumps(config)
         _args += ['--argstr', 'action', self.action]
         _args += ['--argstr', 'configJSON', configJSON]
-        try:
-            p = run(['nix-shell', BASEDIR] + _args,
-                    check=True, stdout=PIPE, stderr=sys.stderr,
-                    encoding='utf-8')
-            return p.stdout
-        except CalledProcessError as e:
-            if DEBUG:
-                raise e
-            else:
-                print(str(e), file=sys.stderr)
-                exit(1)
+        return execute(['nix-shell', BASEDIR] + _args,
+                       return_stdout=self.return_stdout)
 
     def run(self, config: dict[str, object] = None):
         result = self._run_nix_shell(config or {})
@@ -44,7 +50,7 @@ class _Interface(object):
 class Modules(_Interface):
 
     def __init__(self):
-        super().__init__('modules')
+        super().__init__('modules', True)
 
     def _return(self, result: str):
         return json.loads(result)
