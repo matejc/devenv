@@ -98,6 +98,8 @@ def rm_id(args: argparse.Namespace) -> str:
 
 def get_configs() -> str:
     env_prefix = os.path.join(os.environ['HOME'], '.devenv')
+    if not os.path.isdir(env_prefix):
+        return {}
 
     results = {}
     for d in os.listdir(env_prefix):
