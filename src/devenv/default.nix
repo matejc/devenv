@@ -40,12 +40,11 @@ let
   runInShell = { command, loadEnv ? false }:
     let
       config = importJSON "${devEnvDirectory}/config.json";
-      envFile = "${devEnvDirectory}/bin/env";
     in
       mkShell ({
         shellHook = ''
           #!${stdenv.shell}
-          ${optionalString loadEnv "source ${envFile}"}
+          ${optionalString loadEnv "source ${devEnvDirectory}/etc/environment"}
           ${command}
           exitCode=$?
           exit $exitCode
@@ -82,11 +81,11 @@ let
       mkExecutable = { name, executable, loadEnv ? true }:
         writeScriptBin name ''
           #!${stdenv.shell}
-          ${optionalString loadEnv "source ${envFile}/bin/env"}
-          ${executable} $@
+          ${optionalString loadEnv "source ${envFile}/etc/environment"}
+          exec ${executable} $@
         '';
 
-      binFolder = buildEnv {
+      envDir = buildEnv {
         name = "devenv-${config.module}-${config.variant}";
         paths = [ envFile ] ++ (
           mapAttrsToList (n: v: mkExecutable ({
@@ -98,19 +97,26 @@ let
             optionalAttrs (hasAttr "executables" env) env.executables
           )
         );
-        pathsToLink = [ "/bin" ];
+        pathsToLink = [ "/bin" "/etc" ];
       };
 
-      envFile = writeScriptBin "env" ''
-        ${env.env}
-        export PATH="${concatStringsSep ":" config.paths}:$PATH"
-        ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
-      '';
+      envFile =
+        let
+          script = writeScript "env" ''
+            ${env.env}
+            export PATH="${devEnvDirectory}/bin:${concatStringsSep ":" config.paths}:$PATH"
+            ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
+          '';
+        in
+          runCommand "devenv-environment" {} ''
+            mkdir -p $out/etc
+            cp ${script} $out/etc/environment
+          '';
 
       configFile = writeText "devenv-${config.module}-${config.variant}.json" (builtins.toJSON config);
     in runInShell { command = ''
       mkdir -p "${devEnvDirectory}"
-      ln -sf "${binFolder}/bin" "${devEnvDirectory}/"
+      ln -sf ${envDir}/* "${devEnvDirectory}/"
       ln -sf "${configFile}" "${devEnvDirectory}/config.json"
       { ${
         if createCommand != "" && createCommand != null then createCommand else "true"
