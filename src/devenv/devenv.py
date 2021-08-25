@@ -59,10 +59,10 @@ class Modules(_Interface):
         return json.loads(result)
 
 
-class Create(_Interface):
+class Build(_Interface):
 
     def __init__(self):
-        super().__init__('create')
+        super().__init__('build')
 
     def _return(self, result: str):
         return result

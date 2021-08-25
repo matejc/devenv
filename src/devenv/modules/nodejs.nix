@@ -24,10 +24,10 @@ let
     executables.node.executable = "${getNodejs config.variant}/bin/node";
   };
 
-  createCommand = { config, nixPkgs, devEnvDirectory }:
+  buildCommand = { config, nixPkgs, devEnvDirectory }:
     let
       deps = mkDependencies config;
-      script = writeScript "create-command.sh" ''
+      script = writeScript "build-command.sh" ''
         #!${stdenv.shell}
         set -e
 
@@ -41,5 +41,5 @@ let
       if deps == "" then "" else script;
 in {
   name = "nodejs";
-  inherit env createCommand;
+  inherit env buildCommand;
 }

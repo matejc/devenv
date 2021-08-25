@@ -8,7 +8,7 @@ with lib;
 let
   run =
     if action == "modules" then runListModules
-    else if action == "create" then runCreate
+    else if action == "build" then runBuild
     else if action == "run" then runRun
     else if action == "rm" then runRm
     else throw "Error: Action '${action}' not supported!";
@@ -66,12 +66,12 @@ let
     else
       throw "Error: Module '${config.module}' not supported!";
 
-  runCreate =
+  runBuild =
     let
       nixPkgs = mkNixPkgs { inherit config; };
 
-      createCommand = if builtins.hasAttr "createCommand" module then
-        module.createCommand { inherit config devEnvDirectory nixPkgs; }
+      buildCommand = if builtins.hasAttr "buildCommand" module then
+        module.buildCommand { inherit config devEnvDirectory nixPkgs; }
         else null;
 
       env = module.env {
@@ -119,7 +119,7 @@ let
       ln -sf ${envDir}/* "${devEnvDirectory}/"
       ln -sf "${configFile}" "${devEnvDirectory}/config.json"
       { ${
-        if createCommand != "" && createCommand != null then createCommand else "true"
+        if buildCommand != "" && buildCommand != null then buildCommand else "true"
       }; } && echo -e "\n$(basename ${devEnvDirectory})"
     ''; };
 

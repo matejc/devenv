@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 
-from devenv import Rm, Run, Modules, Create
+from devenv import Rm, Run, Modules, Build
 
 
 def modules(_: argparse.Namespace) -> str:
@@ -12,7 +12,7 @@ def modules(_: argparse.Namespace) -> str:
         [f' - {name} ({location})' for name, location in results.items()]))
 
 
-def create(args: argparse.Namespace) -> str:
+def build_func(args: argparse.Namespace) -> str:
     installPackages = []
     installUrls = []
     installDirectories = []
@@ -39,7 +39,7 @@ def create(args: argparse.Namespace) -> str:
         else:
             installPackages += [item]
 
-    instance = Create()
+    instance = Build()
     config = {
         'module': args.module,
         'variant': args.variant,
@@ -69,7 +69,7 @@ def run(args: argparse.Namespace) -> str:
     return result
 
 
-def run_id(args: argparse.Namespace) -> str:
+def run_by_id(args: argparse.Namespace) -> str:
     instance = Run(args.id)
     config = {
         'cmd': ' '.join(args.cmd)
@@ -89,7 +89,7 @@ def rm(args: argparse.Namespace) -> str:
     return result
 
 
-def rm_id(args: argparse.Namespace) -> str:
+def rm_by_id(args: argparse.Namespace) -> str:
     instance = Rm(args.id)
     config = {}
     result = instance.run(config)
@@ -148,19 +148,19 @@ def run_devenv():
     modules_parser = subparsers.add_parser('modules')
     modules_parser.set_defaults(func=modules)
 
-    create_parser = subparsers.add_parser('create')
-    create_parser.add_argument('module', type=str)
-    create_parser.add_argument('-v', '--variant', type=str, default='')
-    create_parser.add_argument(
+    build_parser = subparsers.add_parser('build')
+    build_parser.add_argument('module', type=str)
+    build_parser.add_argument('-v', '--variant', type=str, default='')
+    build_parser.add_argument(
         '-i', '--install', type=str, action='append', default=[])
-    create_parser.add_argument(
+    build_parser.add_argument(
         '-p', '--path', type=str, action='append', default=[])
-    create_parser.add_argument(
+    build_parser.add_argument(
         '-e', '--variable', type=str, nargs=2, metavar=('NAME', 'VALUE'),
         action='append', default=[])
-    create_parser.add_argument(
+    build_parser.add_argument(
         '-d', '--directory', type=str, default=os.getcwd())
-    create_parser.set_defaults(func=create)
+    build_parser.set_defaults(func=build_func)
 
     run_parser = subparsers.add_parser('run')
     run_parser.add_argument('module', type=str)
@@ -169,10 +169,10 @@ def run_devenv():
     run_parser.add_argument('cmd', type=str, nargs='+')
     run_parser.set_defaults(func=run)
 
-    run_id_parser = subparsers.add_parser('run-id')
+    run_id_parser = subparsers.add_parser('run-by-id')
     run_id_parser.add_argument('id', type=str)
     run_id_parser.add_argument('cmd', type=str, nargs='+')
-    run_id_parser.set_defaults(func=run_id)
+    run_id_parser.set_defaults(func=run_by_id)
 
     rm_parser = subparsers.add_parser('rm')
     rm_parser.add_argument('module', type=str)
@@ -180,9 +180,9 @@ def run_devenv():
     rm_parser.add_argument('-d', '--directory', type=str, default=os.getcwd())
     rm_parser.set_defaults(func=rm)
 
-    rm_id_parser = subparsers.add_parser('rm-id')
+    rm_id_parser = subparsers.add_parser('rm-by-id')
     rm_id_parser.add_argument('id', type=str)
-    rm_id_parser.set_defaults(func=rm_id)
+    rm_id_parser.set_defaults(func=rm_by_id)
 
     list_parser = subparsers.add_parser('list')
     list_parser.add_argument(
