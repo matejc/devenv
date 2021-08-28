@@ -34,7 +34,7 @@ $ ./devenv/bin/devenv modules  # to try out if it lists modules
 
 ## Usage (Python module)
 
-### Create the environment
+### Build the environment
 
 This will not litter in your environment or your project directory.
 
@@ -45,10 +45,10 @@ Environment files will be saved in your home directory as `~/.devenv/<hash>/env`
 Example for python project, before doing this you need to `cd` into project directory:
 
 ```shell
-$ devenv create python -v 39 -i @requirements.txt -i robotframework==3.2.2 -p ./src
+$ devenv build python -v 39 -i @requirements.txt -i robotframework==3.2.2 -p ./src
 ```
 
-Command will create the environment for Python 3.9 with dependencies from
+Command will build the environment for Python 3.9 with dependencies from
 the `./requirements.txt` and with Robot Framework 3.2.2. Additionally it will add
 `./src` to the start of `PYTHONPATH`.
 On it's own this procedure will not touch your current shell in any way.
@@ -116,7 +116,7 @@ $ ./devenv/bin/devenv modules  # to try out if it lists modules
 ```
 
 
-### Create more modules
+### Develop more modules
 
 For example there is Python module:
 https://github.com/matejc/devenv/blob/master/src/devenv/modules/python.nix

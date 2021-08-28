@@ -122,7 +122,8 @@ def search_configs(query: dict[str, object]):
                     results[_id]['count'] += 1
                 else:
                     results[_id] = {'config': config, 'count': 1}
-    out = {k: v['config'] for k, v in results.items() if v['count'] == len(query)}
+    out = {k: v['config']
+           for k, v in results.items() if v['count'] == len(query)}
     return out
 
 
