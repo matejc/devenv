@@ -66,16 +66,17 @@ let
     else
       throw "Error: Module '${config.module}' not supported!";
 
+  package = nameToPackage config.package;
+
   runBuild =
     let
       nixPkgs = mkNixPkgs { inherit config; };
 
-      buildCommand = if builtins.hasAttr "buildCommand" module then
-        module.buildCommand { inherit config devEnvDirectory nixPkgs; }
-        else null;
+      buildCommand =
+        module.mkBuild { inherit package config devEnvDirectory nixPkgs; };
 
-      env = module.env {
-        inherit config devEnvDirectory nixPkgs;
+      env = module.mkEnvironment {
+        inherit package config devEnvDirectory nixPkgs;
       };
 
       mkExecutable = { name, executable, loadEnv ? true }:
@@ -86,7 +87,7 @@ let
         '';
 
       envDir = buildEnv {
-        name = "devenv-${config.module}-${config.variant}";
+        name = "devenv-${config.module}-${config.package}";
         paths = [ envFile ] ++ (
           mapAttrsToList (n: v: mkExecutable ({
             name = n;
@@ -103,8 +104,8 @@ let
       envFile =
         let
           script = writeScript "env" ''
-            ${env.env}
-            export PATH="${devEnvDirectory}/bin:${concatStringsSep ":" config.paths}:$PATH"
+            ${env.environment}
+            export PATH="${devEnvDirectory}/bin:${concatStringsSep ":" config.srcs}:$PATH"
             ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
           '';
         in
@@ -113,7 +114,7 @@ let
             cp ${script} $out/etc/environment
           '';
 
-      configFile = writeText "devenv-${config.module}-${config.variant}.json" (builtins.toJSON config);
+      configFile = writeText "devenv-${config.module}-${config.package}.json" (builtins.toJSON config);
     in runInShell { command = ''
       mkdir -p "${devEnvDirectory}"
       ln -sf ${envDir}/* "${devEnvDirectory}/"
