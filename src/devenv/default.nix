@@ -15,15 +15,15 @@ let
 
   config = builtins.fromJSON configJSON;
 
-  devEnvDirectory = if id == null then mkDevEnvDirectoryFromConfig config else mkDevEnvDirectoryFromId id;
+  prefix = if id == null then mkPrefixFromConfig config else mkPrefixFromId id;
 
-  mkDevEnvDirectoryFromId = id:
+  mkPrefixFromId = id:
     if stringLength id == 16 then
       "${builtins.getEnv "HOME"}/.devenv/${id}"
     else
       throw "Id '${id}' is not valid!";
 
-  mkDevEnvDirectoryFromConfig = config:
+  mkPrefixFromConfig = config:
     let
       setToList = path: set:
         flatten (mapAttrsToList (n: v:
@@ -39,12 +39,12 @@ let
 
   runInShell = { command, loadEnv ? false }:
     let
-      config = importJSON "${devEnvDirectory}/config.json";
+      config = importJSON "${prefix}/config.json";
     in
       mkShell ({
         shellHook = ''
           #!${stdenv.shell}
-          ${optionalString loadEnv "source ${devEnvDirectory}/etc/environment"}
+          ${optionalString loadEnv "source ${prefix}/etc/environment"}
           ${command}
           exitCode=$?
           exit $exitCode
@@ -66,18 +66,22 @@ let
     else
       throw "Error: Module '${config.module}' not supported!";
 
-  package = nameToPackage config.package;
+  package = if config.package == "" then module.defaultPackage else (nameToPackage config.package);
+
+  nixpkgs = mkNixPkgs { inherit config; };
+
+  doBuild = length (flatten (attrValues config.install)) != 0;
 
   runBuild =
     let
-      nixPkgs = mkNixPkgs { inherit config; };
+      build = module.mkBuild {
+        inherit package config prefix nixpkgs; };
 
-      buildCommand =
-        module.mkBuild { inherit package config devEnvDirectory nixPkgs; };
+      environment = module.mkEnvironment {
+        inherit package config prefix nixpkgs; };
 
-      env = module.mkEnvironment {
-        inherit package config devEnvDirectory nixPkgs;
-      };
+      executables = module.mkExecutables {
+        inherit package config prefix nixpkgs; };
 
       mkExecutable = { name, executable, loadEnv ? true }:
         writeScriptBin name ''
@@ -92,47 +96,48 @@ let
           mapAttrsToList (n: v: mkExecutable ({
             name = n;
             executable = v.executable;
-          } // (optionalAttrs (hasAttr "loadEnv" v) {
-            loadEnv = v.loadEnv;
-          }))) (
-            optionalAttrs (hasAttr "executables" env) env.executables
-          )
+            loadEnv = if hasAttr "loadEnv" v then v.loadEnv else true;
+          })) executables
         );
         pathsToLink = [ "/bin" "/etc" ];
       };
 
-      envFile =
-        let
-          script = writeScript "env" ''
-            ${env.environment}
-            export PATH="${devEnvDirectory}/bin:${concatStringsSep ":" config.srcs}:$PATH"
-            ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
-          '';
-        in
-          runCommand "devenv-environment" {} ''
-            mkdir -p $out/etc
-            cp ${script} $out/etc/environment
-          '';
+      envFile = writeTextFile {
+        name = "devenv-${config.module}-${package.name}.env";
+        text = ''
+          ${environment}
+          export PATH="${prefix}/bin:${concatStringsSep ":" config.srcs}:$PATH"
+          ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
+        '';
+        executable = true;
+        destination = "/etc/environment";
+      };
 
-      configFile = writeText "devenv-${config.module}-${config.package}.json" (builtins.toJSON config);
+      configFile = writeText "devenv-${config.module}-${package.name}.json" (builtins.toJSON config);
+
+      buildScript = writeScript "devenv-${config.module}-${package.name}.sh" ''
+        #!${stdenv.shell}
+        set -e
+        ${build}
+      '';
     in runInShell { command = ''
-      mkdir -p "${devEnvDirectory}"
-      ln -sf ${envDir}/* "${devEnvDirectory}/"
-      ln -sf "${configFile}" "${devEnvDirectory}/config.json"
+      mkdir -p "${prefix}"
+      ln -sf ${envDir}/* "${prefix}/"
+      ln -sf "${configFile}" "${prefix}/config.json"
       { ${
-        if buildCommand != "" && buildCommand != null then buildCommand else "true"
-      }; } && echo -e "\n$(basename ${devEnvDirectory})"
+        if doBuild then buildScript else "true"
+      }; } && echo -e "\n$(basename ${prefix})"
     ''; };
 
   runRun =
     runInShell { command = config.cmd; loadEnv = true; };
 
   runRm = runInShell { command = ''
-    if [ ! -d "${devEnvDirectory}" ]; then
-      echo "Environment '$(basename ${devEnvDirectory})' does not exist" >&2
+    if [ ! -d "${prefix}" ]; then
+      echo "Environment '$(basename ${prefix})' does not exist" >&2
       exit 1
     fi
-    rm -Irf "${devEnvDirectory}"
+    rm -Irf "${prefix}"
   ''; };
 
   mkModule = location: path:

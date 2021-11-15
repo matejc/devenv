@@ -45,10 +45,12 @@ def build_func(args: argparse.Namespace) -> str:
     config = {
         'module': args.module,
         'package': args.package,
-        'installPackages': installPackages,
-        'installDirectories': installDirectories,
-        'installUrls': installUrls,
-        'installFiles': installFiles,
+        'install': {
+            'packages': installPackages,
+            'directories': installDirectories,
+            'urls': installUrls,
+            'files': installFiles,
+        },
         'nixPackages': nixPackages,
         'nixScripts': nixScripts,
         'srcs': [os.path.abspath(p) for p in args.source],
@@ -111,7 +113,7 @@ def list_func(args: argparse.Namespace) -> str:
     results = []
     for _id, config in configs.items():
         module = config['module']
-        package = config['package']
+        package = config['package'] or 'default'
         results += [
             f'{_id} - {module} ({package})'
         ]
