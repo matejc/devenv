@@ -1,7 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 let
   mkEnvironment = { package, config, nixpkgs, prefix }: ''
-    export PYTHONPATH="${pkgs.lib.concatStringsSep ":" config.srcs}:${package}/lib/${package.libPrefix}/site-packages:$PYTHONPATH"
+    export PYTHONPATH="${pkgs.lib.concatStringsSep ":" config.srcs}:${prefix}/venv/lib/${package.libPrefix}/site-packages:$PYTHONPATH"
     export VIRTUAL_ENV="${prefix}/venv"
     export PATH="${prefix}/venv/bin:${package}/bin:$PATH"
   '';

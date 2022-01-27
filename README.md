@@ -31,13 +31,6 @@ $ ./devenv/bin/pip install ./devenv
 $ ./devenv/bin/devenv modules  # to try out if it lists modules
 ```
 
-With Docker:
-
-```
-$ git clone git://github.com/matejc/devenv
-
-```
-
 
 ## Usage (Python module)
 

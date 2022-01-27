@@ -57,6 +57,7 @@ let
     runInShell { command = "echo '${builtins.toJSON (mapAttrs (n: v: v.location) modules)}'"; };
 
   mkNixPkgs = { config }:
+    [ stdenv.cc.cc.lib ] ++
     (map (p: nameToPackage p) config.nixPackages) ++
     (map (s: callPackage s {}) config.nixScripts);
 
@@ -106,6 +107,7 @@ let
         name = "devenv-${config.module}-${package.name}.env";
         text = ''
           ${environment}
+          export LD_LIBRARY_PATH="${makeLibraryPath nixpkgs}"
           export PATH="${prefix}/bin:${concatStringsSep ":" config.srcs}:$PATH"
           ${concatMapStringsSep "\n" (e: ''export ${e.name}="${e.value}"'') config.variables}
         '';
