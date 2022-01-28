@@ -1,6 +1,8 @@
 { pkgs ? import <nixpkgs> {}
 , action ? ""
 , id ? null
+, directory ? null
+, name ? null
 , configJSON ? "{}"
 , extraModulesPath ? builtins.getEnv "DEVENV_MODULES_PATH" }:
 with pkgs;
@@ -15,15 +17,23 @@ let
 
   config = builtins.fromJSON configJSON;
 
-  prefix = if id == null then mkPrefixFromConfig config else mkPrefixFromId id;
+  _name = if name == null then "" else name;
+
+  _id = if id == null then mkIdFromConfig config else id;
+  prefix = mkPrefixFromId _id;
+
+  homePrefix = "${builtins.getEnv "HOME"}/.devenv";
 
   mkPrefixFromId = id:
     if stringLength id == 16 then
-      "${builtins.getEnv "HOME"}/.devenv/${id}"
+      "${homePrefix}/${id}"
     else
       throw "Id '${id}' is not valid!";
 
-  mkPrefixFromConfig = config:
+  directoryHash = if directory == null then null else
+    builtins.substring 0 16 (builtins.hashString "sha1" directory);
+
+  mkIdFromConfig = config:
     let
       setToList = path: set:
         flatten (mapAttrsToList (n: v:
@@ -32,14 +42,15 @@ let
       content = concatStringsSep "\n" (sort (a: b: a < b) (setToList [] config));
       hash = builtins.hashString "sha1" content;
     in
-      "${builtins.getEnv "HOME"}/.devenv/${builtins.substring 0 16 hash}";
+      "${builtins.substring 0 16 hash}";
 
   nameToPackage = str:
     getAttrFromPath (splitString "." str) pkgs;
 
-  runInShell = { command, loadEnv ? false }:
+  runInShell = { command, loadEnv ? false, prefix ? prefix }:
     let
-      config = importJSON "${prefix}/config.json";
+      envExists = builtins.pathExists prefix;
+      config = if envExists then importJSON "${prefix}/config.json" else throw "Id '${_id}' does not exist!";
     in
       mkShell ({
         shellHook = ''
@@ -126,21 +137,77 @@ let
       mkdir -p "${prefix}"
       ln -sf ${envDir}/* "${prefix}/"
       ln -sf "${configFile}" "${prefix}/config.json"
+
+      if [ ! -z "${directoryHash}" ]
+      then
+        mkdir -p "${homePrefix}/dirs/"
+        touch "${homePrefix}/dirs/${directoryHash}"
+        ${gnused}/bin/sed -i '/${_id}/d' "${homePrefix}/dirs/${directoryHash}"
+        echo "${_id}" >> "${homePrefix}/dirs/${directoryHash}"
+      fi
+
+      if [ ! -z "${_name}" ]
+      then
+        mkdir -p "${homePrefix}/names/"
+        rm "${homePrefix}/names/${name}/name"
+        rm "${homePrefix}/names/${name}"
+        ln -s "${prefix}" "${homePrefix}/names/${name}"
+        echo "${name}" > "${prefix}/name"
+      fi
+
       { ${
         if doBuild then buildScript else "true"
       }; } && echo -e "\n$(basename ${prefix})"
     ''; };
 
-  runRun =
-    runInShell { command = config.cmd; loadEnv = true; };
+  readLastId =
+  let
+    content = builtins.readFile "${homePrefix}/dirs/${directoryHash}";
+    contentFiltered = filter (l: l != "") (splitString "\n" content);
+    lastId = if length contentFiltered > 0 then last contentFiltered else null;
+  in
+    if builtins.pathExists "${homePrefix}/dirs/${directoryHash}" then lastId else null;
 
-  runRm = runInShell { command = ''
-    if [ ! -d "${prefix}" ]; then
-      echo "Environment '$(basename ${prefix})' does not exist" >&2
-      exit 1
-    fi
-    rm -Irf "${prefix}"
-  ''; };
+  runRun =
+    runInShell {
+      command = config.cmd;
+      loadEnv = true;
+      prefix = if readLastId != null then "${homePrefix}/${readLastId}" else prefix;
+    };
+
+  runRm = runInShell { command =
+    let
+      idStr = builtins.toString id;
+    in ''
+      if [ -f "${prefix}/name" ]
+      then
+        rm "${homePrefix}/names/$(cat ${prefix}/name)"
+      fi
+
+      if [ ! -z "${idStr}" ]
+      then
+        if [ ! -d "${prefix}" ]
+        then
+          echo "Environment '${_id}' does not exist!" >&2
+          exit 1
+        fi
+        rm -Irf "${prefix}"
+        if [ -f "${homePrefix}/dirs/${directoryHash}" ]
+        then
+          ${gnused}/bin/sed -i '/${_id}/d' "${homePrefix}/dirs/${directoryHash}"
+        fi
+      else
+        if [ -f "${homePrefix}/dirs/${directoryHash}" ]
+        then
+          cat "${homePrefix}/dirs/${directoryHash}" | ${findutils}/bin/xargs -i rm -Irf '${homePrefix}/{}'
+          rm "${homePrefix}/dirs/${directoryHash}"
+        else
+          echo "Directory '${directory}' does not have environments!" >&2
+          exit 1
+        fi
+      fi
+    '';
+  };
 
   mkModule = location: path:
     let

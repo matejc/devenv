@@ -28,6 +28,8 @@ def execute(cmd: list[str], return_stdout: bool):
 class _Interface(object):
     action: str
     id: str = ''
+    directory: str = ''
+    name: str = ''
 
     def __init__(self, action: str, return_stdout: bool = False):
         self.action = action
@@ -37,6 +39,10 @@ class _Interface(object):
         _args = ['--show-trace'] if DEBUG else ['--quiet']
         if self.id:
             _args += ['--argstr', 'id', self.id]
+        if self.directory:
+            _args += ['--argstr', 'directory', os.path.abspath(self.directory)]
+        if self.name:
+            _args += ['--argstr', 'name', self.name]
         _args += ['--argstr', 'action', self.action]
         configJSON = json.dumps(config)
         _args += ['--argstr', 'configJSON', configJSON]
@@ -62,8 +68,10 @@ class Modules(_Interface):
 
 class Build(_Interface):
 
-    def __init__(self):
+    def __init__(self, _directory: str = '', _name: str = ''):
         super().__init__('build')
+        self.directory = _directory
+        self.name = _name
 
     def _return(self, result: str):
         return result
@@ -71,9 +79,10 @@ class Build(_Interface):
 
 class Run(_Interface):
 
-    def __init__(self, _id: str):
+    def __init__(self, _id: str = '', _directory: str = ''):
         super().__init__('run')
         self.id = _id
+        self.directory = _directory
 
     def _return(self, result: str):
         return result
@@ -81,9 +90,10 @@ class Run(_Interface):
 
 class Rm(_Interface):
 
-    def __init__(self, _id: str):
+    def __init__(self, _id: str = '', _directory: str = ''):
         super().__init__('rm')
         self.id = _id
+        self.directory = _directory
 
     def _return(self, result: str):
         return result
