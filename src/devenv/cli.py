@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import json
 import os
+import inspect
 
 from typing import Any
 
@@ -9,6 +10,7 @@ from devenv import Rm, Run, Modules, Build
 
 
 CWD = os.getcwd()
+ENV_PREFIX = os.path.join(os.environ['HOME'], '.devenv')
 
 
 def modules(_: argparse.Namespace) -> str:
@@ -65,7 +67,13 @@ def build_func(args: argparse.Namespace) -> str:
 
 
 def run(args: argparse.Namespace) -> str:
-    instance = Run(_id=args.id, _directory=args.directory)
+    try:
+        path = os.path.join(ENV_PREFIX, 'names', args.name)
+        _id = os.path.basename(os.path.realpath(path))
+    except FileNotFoundError:
+        _id = args.id
+
+    instance = Run(_id=_id, _directory=args.directory, _name=args.name)
     config = {
         'cmd': ' '.join(args.cmd)
     }
@@ -125,8 +133,8 @@ def search_configs(query: dict[str, object], directory: str = ''):
     return out
 
 
+
 def list_func(args: argparse.Namespace) -> str:
-    env_prefix = os.path.join(os.environ['HOME'], '.devenv')
     directory = ''
     if not args.all:
         directory = os.path.abspath(args.directory)
@@ -136,28 +144,42 @@ def list_func(args: argparse.Namespace) -> str:
     for _id, config in configs.items():
         module = config['module']
         package = config['package'] or 'default'
-        installs = '\n - '.join(sorted(
+        installs = sorted(
             config['install']['packages'] +
             config['install']['directories'] +
             config['install']['files'] +
             config['install']['urls'] +
             config['nixPackages'] +
             config['nixScripts']
-        ))
-        env_dir = os.path.abspath(os.path.join(env_prefix, config['id']))
+        )
+        env_dir = os.path.abspath(os.path.join(ENV_PREFIX, config['id']))
         path = ''
+        name = ''
         try:
             with open(os.path.join(env_dir, 'name'), 'r') as f:
-                path = os.path.join(env_prefix, 'names', f.read().strip())
+                name = f.read().strip()
+                path = os.path.join(ENV_PREFIX, 'names', name)
             if os.path.realpath(path) != env_dir:
                 raise FileNotFoundError(path)
         except FileNotFoundError:
             path = env_dir
 
+        nl = f'''
+             - '''
+        dependencies_str: str = f'Dependencies:{nl}{nl.join(installs)}' if installs else ''
+        name_str: str = f'''
+            Name: {name}''' if name else ''
+        result: str = f'''
+            Id: {_id}{name_str}
+            Module: {module}
+            Package: {package}
+            Environment: {path}/etc/environment
+            {dependencies_str}
+        '''
         results += [
-            f'Id: {_id}\nModule: {module}\nPackage: {package}\nEnvironment: {path}/etc/environment\nDependencies:\n - {installs}\n'
+            inspect.cleandoc(result)
         ]
-    return '\n'.join(results)
+    return '\n\n'.join(results)
 
 
 def run_devenv():
@@ -188,6 +210,7 @@ def run_devenv():
     run_parser_group = run_parser.add_mutually_exclusive_group(
         required=False)
     run_parser_group.add_argument('--id', type=str, default='')
+    run_parser_group.add_argument('-n', '--name', type=str, default='')
     run_parser_group.add_argument(
         '-d', '--directory', type=str, default=CWD)
     run_parser.add_argument('cmd', type=str, nargs='*')

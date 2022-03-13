@@ -79,10 +79,11 @@ class Build(_Interface):
 
 class Run(_Interface):
 
-    def __init__(self, _id: str = '', _directory: str = ''):
+    def __init__(self, _id: str = '', _directory: str = '', _name: str = ''):
         super().__init__('run')
         self.id = _id
         self.directory = _directory
+        self.name = _name
 
     def _return(self, result: str):
         return result

@@ -10,17 +10,16 @@ with lib;
 let
   run =
     if action == "modules" then runListModules
-    else if action == "build" then runBuild
-    else if action == "run" then runRun
-    else if action == "rm" then runRm
+    else if action == "build" then runBuild (mkIdFromConfig config)
+    else if action == "run" then runRun (if id != null then id else readLastId)
+    else if action == "rm" then runRm id
     else throw "Error: Action '${action}' not supported!";
 
   config = builtins.fromJSON configJSON;
 
   _name = if name == null then "" else name;
 
-  _id = if id == null then mkIdFromConfig config else id;
-  prefix = mkPrefixFromId _id;
+  _id = if id == null then "" else id;
 
   homePrefix = "${builtins.getEnv "HOME"}/.devenv";
 
@@ -29,6 +28,14 @@ let
       "${homePrefix}/${id}"
     else
       throw "Id '${id}' is not valid!";
+
+  findIdFromName = name:
+  let
+    id = builtins.readFile (runCommand "name-to-id-${name}" {} ''
+      basename "$(realpath "${homePrefix}/names/${name}")" >$out
+    '');
+  in
+    if id == "" then throw "Name '${name}' does not exist!" else id;
 
   directoryHash = if directory == null then null else
     builtins.substring 0 16 (builtins.hashString "sha1" directory);
@@ -84,8 +91,9 @@ let
 
   doBuild = length (flatten (attrValues config.install)) != 0;
 
-  runBuild =
+  runBuild = id:
     let
+      prefix = mkPrefixFromId id;
       build = module.mkBuild {
         inherit package config prefix nixpkgs; };
 
@@ -149,10 +157,10 @@ let
       if [ ! -z "${_name}" ]
       then
         mkdir -p "${homePrefix}/names/"
-        rm "${homePrefix}/names/${name}/name"
-        rm "${homePrefix}/names/${name}"
-        ln -s "${prefix}" "${homePrefix}/names/${name}"
-        echo "${name}" > "${prefix}/name"
+        rm -f "${homePrefix}/names/${_name}/name"
+        rm -f "${homePrefix}/names/${_name}"
+        ln -s "${prefix}" "${homePrefix}/names/${_name}"
+        echo "${_name}" > "${prefix}/name"
       fi
 
       { ${
@@ -168,14 +176,14 @@ let
   in
     if builtins.pathExists "${homePrefix}/dirs/${directoryHash}" then lastId else null;
 
-  runRun =
+  runRun = id:
     runInShell {
       command = config.cmd;
       loadEnv = true;
-      prefix = if readLastId != null then "${homePrefix}/${readLastId}" else prefix;
+      prefix = "${homePrefix}/${id}";
     };
 
-  runRm = runInShell { command =
+  runRm = id: runInShell { command =
     let
       idStr = builtins.toString id;
     in ''
